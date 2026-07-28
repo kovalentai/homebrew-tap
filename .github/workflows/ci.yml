@@ -1,0 +1,79 @@
+name: CI
+
+# Every change to the formula is style-checked, audited, installed, and run.
+# The audit is --online, so it also catches a formula whose artifacts are not
+# actually reachable.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # A formula can rot without anyone touching it: the CLI publishes a new
+  # version, or an artifact moves. Catch that on a schedule instead of on a
+  # user's machine.
+  schedule:
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-14 is Apple Silicon, macos-13 is Intel, so the two macOS
+        # branches of the formula both get exercised.
+        os: [macos-14, macos-13, ubuntu-latest]
+    steps:
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - uses: actions/checkout@v4
+        with:
+          path: tap
+
+      - name: Install as a tap
+        run: |
+          set -euo pipefail
+          TAP_DIR="$(brew --repository)/Library/Taps/kovalentai/homebrew-tap"
+          mkdir -p "$(dirname "$TAP_DIR")"
+          ln -s "$GITHUB_WORKSPACE/tap" "$TAP_DIR"
+
+      - name: Style
+        run: brew style kovalentai/tap
+
+      - name: Audit
+        run: brew audit --strict --online kovalentai/tap/knaix
+
+      - name: Install
+        run: brew install --verbose kovalentai/tap/knaix
+
+      - name: Test
+        run: brew test --verbose kovalentai/tap/knaix
+
+      - name: Completions are on disk
+        run: |
+          set -euo pipefail
+          prefix="$(brew --prefix knaix)"
+          test -s "$prefix/etc/bash_completion.d/knaix"
+          test -s "$prefix/share/zsh/site-functions/_knaix"
+          test -s "$prefix/share/fish/vendor_completions.d/knaix.fish"
+
+      # Stands in for a livecheck block, which brew style will not accept on a
+      # formula with no top-level url. On the schedule this is the whole point
+      # of the run: it goes red when a CLI release has shipped and the bump
+      # never landed, rather than leaving the tap quietly a version behind.
+      - name: Formula is not behind the published release
+        run: |
+          set -euo pipefail
+          formula="$(brew info --json=v2 kovalentai/tap/knaix | jq -r '.formulae[0].versions.stable')"
+          latest="$(curl -fsSL https://releases.knaix.com/latest-version | tr -d '[:space:]')"
+          echo "formula=$formula latest=$latest"
+          if [ "$formula" != "$latest" ]; then
+            echo "::error::Formula is at $formula but releases.knaix.com serves $latest. Run the tap-bump workflow in knaix-cli."
+            exit 1
+          fi

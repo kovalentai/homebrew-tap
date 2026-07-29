@@ -37,12 +37,17 @@ jobs:
         with:
           path: tap
 
+      # setup-homebrew notices this repo is a tap and checks its own copy into
+      # the Taps directory. Replace it outright, so brew reads the commit under
+      # test rather than whatever was fetched.
       - name: Install as a tap
         run: |
           set -euo pipefail
           TAP_DIR="$(brew --repository)/Library/Taps/kovalentai/homebrew-tap"
+          rm -rf "$TAP_DIR"
           mkdir -p "$(dirname "$TAP_DIR")"
           ln -s "$GITHUB_WORKSPACE/tap" "$TAP_DIR"
+          brew tap-info kovalentai/tap
 
       - name: Style
         run: brew style kovalentai/tap

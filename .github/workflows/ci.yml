@@ -25,9 +25,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-14 is Apple Silicon, macos-13 is Intel, so the two macOS
-        # branches of the formula both get exercised.
-        os: [macos-14, macos-13, ubuntu-latest]
+        # macos-14 is Apple Silicon and macos-15-intel is Intel, so both macOS
+        # branches of the formula get exercised rather than just the one the
+        # default runner happens to be.
+        os: [macos-14, macos-15-intel, ubuntu-latest]
     steps:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@master

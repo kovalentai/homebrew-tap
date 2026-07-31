@@ -32,28 +32,36 @@ out="${2:-}"
 note() { printf '%s\n' "$*" >&2; }
 
 sha256_of() {
-  if command -v sha256sum >/dev/null 2>&1; then
+  if command -v sha256sum >/dev/null 2>&1
+  then
     sha256sum "$1" | awk '{print $1}'
   else
     shasum -a 256 "$1" | awk '{print $1}'
   fi
 }
 
-published="$(curl -fsSL "${RELEASES}/latest-version" | tr -d '[:space:]')" \
-  || { note "Could not read ${RELEASES}/latest-version."; exit "$NOT_READY"; }
+published="$(curl -fsSL "${RELEASES}/latest-version" | tr -d '[:space:]')" ||
+  {
+    note "Could not read ${RELEASES}/latest-version."
+    exit "${NOT_READY}"
+  }
 
-[ -n "$published" ] || { note "${RELEASES}/latest-version is empty."; exit "$NOT_READY"; }
+[[ -n "${published}" ]] || {
+  note "${RELEASES}/latest-version is empty."
+  exit "${NOT_READY}"
+}
 
-version="${version:-$published}"
+version="${version:-${published}}"
 version="${version#v}"
 
 # The formula must never get ahead of the installer. If latest-version still
 # points at the previous release, the manual publish has not finished, and a
 # bump now would send brew users to a version the curl installer does not yet
 # serve -- or to binaries that are not uploaded at all.
-if [ "$version" != "$published" ]; then
+if [[ "${version}" != "${published}" ]]
+then
   note "Not ready: asked for ${version}, but ${RELEASES}/latest-version still serves ${published}."
-  exit "$NOT_READY"
+  exit "${NOT_READY}"
 fi
 
 work="$(mktemp -d)"
@@ -62,31 +70,35 @@ trap 'rm -rf "$work"' EXIT INT TERM
 # Verified checksums go to files rather than an associative array: macOS still
 # ships bash 3.2, and a command substitution could not exit the script from the
 # loop anyway.
-for platform in "${PLATFORMS[@]}"; do
+for platform in "${PLATFORMS[@]}"
+do
   binary_url="${RELEASES}/v${version}/knaix-${platform}"
   sidecar_url="${binary_url}.sha256"
 
-  if ! curl -fsSL -o "${work}/${platform}" "$binary_url"; then
+  if ! curl -fsSL -o "${work}/${platform}" "${binary_url}"
+  then
     note "Not ready: ${binary_url} is not reachable."
-    exit "$NOT_READY"
+    exit "${NOT_READY}"
   fi
-  if ! curl -fsSL -o "${work}/${platform}.sha256" "$sidecar_url"; then
+  if ! curl -fsSL -o "${work}/${platform}.sha256" "${sidecar_url}"
+  then
     note "Not ready: ${sidecar_url} is not reachable."
-    exit "$NOT_READY"
+    exit "${NOT_READY}"
   fi
 
-  expected="$(tr -d '[:space:]' < "${work}/${platform}.sha256")"
+  expected="$(tr -d '[:space:]' <"${work}/${platform}.sha256")"
   actual="$(sha256_of "${work}/${platform}")"
 
   # Recomputed from the bytes rather than copied from the sidecar. Trusting the
   # sidecar would happily bake in the checksum of a truncated upload, and brew
   # would then verify a broken binary against its own broken hash.
-  if [ "$expected" != "$actual" ]; then
+  if [[ "${expected}" != "${actual}" ]]
+  then
     note "Checksum mismatch for knaix-${platform}: sidecar says ${expected}, the binary is ${actual}."
     exit 1
   fi
 
-  printf '%s' "$actual" > "${work}/${platform}.verified"
+  printf '%s' "${actual}" >"${work}/${platform}.verified"
 done
 
 note "All ${#PLATFORMS[@]} platforms verified at v${version}."
@@ -160,9 +172,10 @@ class Knaix < Formula
 end
 EOF
 
-if [ -n "$out" ]; then
-  printf '%s\n' "$formula" > "$out"
+if [[ -n "${out}" ]]
+then
+  printf '%s\n' "${formula}" >"${out}"
   note "Wrote ${out}."
 else
-  printf '%s\n' "$formula"
+  printf '%s\n' "${formula}"
 fi

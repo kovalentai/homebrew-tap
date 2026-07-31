@@ -1,0 +1,82 @@
+name: Bump the formula
+
+# Keeps Formula/knaix.rb pointing at whatever releases.knaix.com serves.
+#
+# This used to live in knaix-cli, which meant a workflow in one repository
+# pushing to another. That needs a personal access token, and when that token
+# lost its scope on the tap the push started failing with a 403 while the run
+# still looked like the quiet "nothing to bump" exit. Every release since needed
+# a manual push, and nobody noticed for a day.
+#
+# A workflow in this repository can push to this repository with the GITHUB_TOKEN
+# it is handed. No token to issue, expire, or under-scope.
+#
+#   schedule          -> the normal path, since the S3 publish is manual and
+#                        lands at an unpredictable time after the tag
+#   workflow_dispatch -> land it now, once you have published
+#
+# The render script refuses to name an artifact it cannot download, so a run
+# before the publish ends quietly rather than shipping a broken formula.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 0.4.9. Defaults to what releases.knaix.com serves.'
+        required: false
+
+# The whole point of moving this here.
+permissions:
+  contents: write
+
+concurrency:
+  group: bump-formula
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Render and commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render the formula
+        id: render
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          scripts/render-formula.sh "${{ github.event.inputs.version || '' }}" out/knaix.rb
+          status=$?
+          set -e
+          case "$status" in
+            0) echo "ready=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "ready=false" >> "$GITHUB_OUTPUT"
+               echo "::notice::Not published to releases.knaix.com yet. Nothing to bump." ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Commit the bump
+        if: steps.render.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cp out/knaix.rb Formula/knaix.rb
+          if git diff --quiet; then
+            echo "::notice::Formula already matches the published release."
+            # Nothing to push, so prove the credential still works instead of
+            # exiting quiet. A push that can no longer authenticate is exactly
+            # what hid last time, and it hid because the healthy path and the
+            # broken path both printed nothing.
+            git push --dry-run origin HEAD:main
+            echo "::notice::Push credential verified."
+            exit 0
+          fi
+          version="$(sed -n 's/^  version "\(.*\)"$/\1/p' Formula/knaix.rb)"
+          git config user.name "kovalent-bot"
+          git config user.email "bot@kovalentai.com"
+          git add Formula/knaix.rb
+          git commit -m "knaix ${version}"
+          git push
+          echo "::notice::Bumped the tap to ${version}."

@@ -3,7 +3,7 @@
 class Knaix < Formula
   desc "Command-line client for Kovalent: private AI nodes with cited answers"
   homepage "https://knaix.com"
-  version "0.4.9"
+  version "0.4.10"
   license "Apache-2.0"
 
   # No livecheck block. It cannot pass brew style here: with no top-level url,
@@ -14,23 +14,23 @@ class Knaix < Formula
 
   on_macos do
     on_arm do
-      url "https://releases.knaix.com/v0.4.9/knaix-darwin-arm64"
-      sha256 "2bf024e0d3b56ccda6a1ab4ec031cfaa5fa7822fe174602dcbffd8a19b53c630"
+      url "https://releases.knaix.com/v0.4.10/knaix-darwin-arm64"
+      sha256 "9c227941beaa2a580b1311299b64e5426afa2039e0cb8f7078d3cbb2dca55d1c"
     end
     on_intel do
-      url "https://releases.knaix.com/v0.4.9/knaix-darwin-x86_64"
-      sha256 "d7f98e853425471cd39be65705f9215eef235512bd4c156570eb41a672f39ba0"
+      url "https://releases.knaix.com/v0.4.10/knaix-darwin-x86_64"
+      sha256 "11f4be9e0140b30e8d388c6c20f8a7d2395bc39947616a6872176a20f8a3eea3"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://releases.knaix.com/v0.4.9/knaix-linux-arm64"
-      sha256 "8d886f751a7bab6042425c6a031599e6f181f2b3d300b9f802a305bbf51b5648"
+      url "https://releases.knaix.com/v0.4.10/knaix-linux-arm64"
+      sha256 "47abe82c2d098d0ef6b5bd0852e7f77d05bdec45aab88dde333501b7dfb24ef1"
     end
     on_intel do
-      url "https://releases.knaix.com/v0.4.9/knaix-linux-x86_64"
-      sha256 "ebe8857f4be18b93cd7ab519397f4659b6405febbde290e424d4e15e364620db"
+      url "https://releases.knaix.com/v0.4.10/knaix-linux-x86_64"
+      sha256 "a5ff16638d65317c8e5f2ace0245c14f5e1de1869c5c6a4da6366ba22afecf3b"
     end
   end
 

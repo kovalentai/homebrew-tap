@@ -26,10 +26,48 @@ RELEASES="${KNAIX_RELEASES_URL:-https://releases.knaix.com}"
 PLATFORMS=(darwin-arm64 darwin-x86_64 linux-arm64 linux-x86_64)
 NOT_READY=3
 
+# This script runs hourly, so it is a large share of all traffic to
+# releases.knaix.com. Identifying itself is what lets the download figures tell
+# our own polling apart from somebody installing the CLI; without it every run
+# was counted as four installs arriving by install.sh, because that is what a
+# bare curl looks like in the logs.
+#
+# Must not contain the word "homebrew": the log classifier tests for that first,
+# and this traffic is the bump job, not a brew install.
+UA="knaix-tap-bump/1 (+https://github.com/kovalentai/tap-bump)"
+
+# Set to any non-empty value to re-download and re-verify even when the formula
+# already pins the published version.
+FORCE_VERIFY="${KNAIX_TAP_FORCE_VERIFY:-}"
+
 version="${1:-}"
 out="${2:-}"
 
+# The formula this script maintains. Read to reuse checksums that were already
+# verified, never to decide what to publish.
+formula="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Formula/knaix.rb"
+
 note() { printf '%s\n' "$*" >&2; }
+
+# The sha256 that the current formula pins for one platform. Matched from the
+# url line rather than by position, so reordering the on_macos/on_linux blocks
+# cannot silently pair a platform with another's checksum.
+#
+# Both print what they found, or nothing, and always succeed. A missing or
+# unreadable formula is "nothing pinned", which every caller already handles by
+# downloading instead. Succeeding unconditionally is also what lets the callers
+# assign from them on a plain line: reading one inside a condition would suspend
+# set -e for it and mask a genuine read failure as an empty answer.
+pinned_sha_for() {
+  awk -v want="knaix-$1\"" '
+    index($0, want) { found = 1; next }
+    found && $1 == "sha256" { gsub(/"/, "", $2); print $2; exit }
+  ' "${formula}" 2>/dev/null || true
+}
+
+pinned_version() {
+  sed -n 's/^  version "\(.*\)"$/\1/p' "${formula}" 2>/dev/null || true
+}
 
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1
@@ -40,7 +78,7 @@ sha256_of() {
   fi
 }
 
-published="$(curl -fsSL "${RELEASES}/latest-version" | tr -d '[:space:]')" ||
+published="$(curl -fsSL -A "${UA}" "${RELEASES}/latest-version" | tr -d '[:space:]')" ||
   {
     note "Could not read ${RELEASES}/latest-version."
     exit "${NOT_READY}"
@@ -67,20 +105,65 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT INT TERM
 
+# Nothing has been published since the last run, so the four binaries would be
+# downloaded only to recompute checksums the formula already carries. Reuse them
+# and render an identical formula instead.
+#
+# This deliberately renders rather than exiting early. The caller treats a
+# successful render as "compare and push if changed", and that path also proves
+# the push credential still works -- the failure that once went unnoticed for
+# several releases. Exiting here would take that check with it.
+#
+# Only for the unattended path: naming a version explicitly, or setting
+# KNAIX_TAP_FORCE_VERIFY, always re-downloads and re-verifies.
+#
+# The version is read on its own line rather than inside the test below, so its
+# exit status is not masked and set -e is not suspended for it.
+pinned=""
+if [[ -z "${1:-}" && -z "${FORCE_VERIFY}" ]]
+then
+  pinned="$(pinned_version)"
+fi
+
+reuse_pinned=""
+if [[ -n "${pinned}" && "${pinned}" == "${version}" ]]
+then
+  reuse_pinned="yes"
+  for platform in "${PLATFORMS[@]}"
+  do
+    sha="$(pinned_sha_for "${platform}")"
+    # A formula missing a checksum is not one to copy from.
+    if [[ ! "${sha}" =~ ^[0-9a-f]{64}$ ]]
+    then
+      note "Formula pins v${version} but has no usable checksum for knaix-${platform}; re-verifying from the bucket."
+      reuse_pinned=""
+      break
+    fi
+    printf '%s' "${sha}" >"${work}/${platform}.verified"
+  done
+fi
+
+if [[ -n "${reuse_pinned}" ]]
+then
+  note "Formula already pins v${version}; reused its verified checksums without downloading."
+fi
+
 # Verified checksums go to files rather than an associative array: macOS still
 # ships bash 3.2, and a command substitution could not exit the script from the
 # loop anyway.
 for platform in "${PLATFORMS[@]}"
 do
+  [[ -z "${reuse_pinned}" ]] || break
+
   binary_url="${RELEASES}/v${version}/knaix-${platform}"
   sidecar_url="${binary_url}.sha256"
 
-  if ! curl -fsSL -o "${work}/${platform}" "${binary_url}"
+  if ! curl -fsSL -A "${UA}" -o "${work}/${platform}" "${binary_url}"
   then
     note "Not ready: ${binary_url} is not reachable."
     exit "${NOT_READY}"
   fi
-  if ! curl -fsSL -o "${work}/${platform}.sha256" "${sidecar_url}"
+  if ! curl -fsSL -A "${UA}" -o "${work}/${platform}.sha256" "${sidecar_url}"
   then
     note "Not ready: ${sidecar_url} is not reachable."
     exit "${NOT_READY}"
@@ -101,7 +184,10 @@ do
   printf '%s' "${actual}" >"${work}/${platform}.verified"
 done
 
-note "All ${#PLATFORMS[@]} platforms verified at v${version}."
+if [[ -z "${reuse_pinned}" ]]
+then
+  note "All ${#PLATFORMS[@]} platforms verified at v${version}."
+fi
 
 sha_darwin_arm64="$(cat "${work}/darwin-arm64.verified")"
 sha_darwin_x86_64="$(cat "${work}/darwin-x86_64.verified")"

@@ -52,15 +52,21 @@ note() { printf '%s\n' "$*" >&2; }
 # The sha256 that the current formula pins for one platform. Matched from the
 # url line rather than by position, so reordering the on_macos/on_linux blocks
 # cannot silently pair a platform with another's checksum.
+#
+# Both print what they found, or nothing, and always succeed. A missing or
+# unreadable formula is "nothing pinned", which every caller already handles by
+# downloading instead. Succeeding unconditionally is also what lets the callers
+# assign from them on a plain line: reading one inside a condition would suspend
+# set -e for it and mask a genuine read failure as an empty answer.
 pinned_sha_for() {
   awk -v want="knaix-$1\"" '
     index($0, want) { found = 1; next }
     found && $1 == "sha256" { gsub(/"/, "", $2); print $2; exit }
-  ' "${formula}" 2>/dev/null
+  ' "${formula}" 2>/dev/null || true
 }
 
 pinned_version() {
-  sed -n 's/^  version "\(.*\)"$/\1/p' "${formula}" 2>/dev/null
+  sed -n 's/^  version "\(.*\)"$/\1/p' "${formula}" 2>/dev/null || true
 }
 
 sha256_of() {
@@ -110,8 +116,17 @@ trap 'rm -rf "$work"' EXIT INT TERM
 #
 # Only for the unattended path: naming a version explicitly, or setting
 # KNAIX_TAP_FORCE_VERIFY, always re-downloads and re-verifies.
+#
+# The version is read on its own line rather than inside the test below, so its
+# exit status is not masked and set -e is not suspended for it.
+pinned=""
+if [[ -z "${1:-}" && -z "${FORCE_VERIFY}" ]]
+then
+  pinned="$(pinned_version)"
+fi
+
 reuse_pinned=""
-if [[ -z "${1:-}" && -z "${FORCE_VERIFY}" && "$(pinned_version)" == "${version}" ]]
+if [[ -n "${pinned}" && "${pinned}" == "${version}" ]]
 then
   reuse_pinned="yes"
   for platform in "${PLATFORMS[@]}"

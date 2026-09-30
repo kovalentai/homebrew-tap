@@ -34,7 +34,7 @@ NOT_READY=3
 #
 # Must not contain the word "homebrew": the log classifier tests for that first,
 # and this traffic is the bump job, not a brew install.
-UA="knaix-tap-bump/1 (+https://github.com/kovalentai/tap-bump)"
+UA="knaix-tap-bump/1 (+https://github.com/kovalentai/homebrew-tap)"
 
 # Set to any non-empty value to re-download and re-verify even when the formula
 # already pins the published version.
@@ -139,13 +139,35 @@ then
       reuse_pinned=""
       break
     fi
+
+    # The version alone does not prove the bytes are unchanged: a release can
+    # be re-published under the same version, and the hourly full verify used
+    # to be what noticed. The sidecar is 64 bytes and the log classifier never
+    # counts it as a download, so comparing against it keeps that check at
+    # almost no cost. Any doubt falls through to the full download-and-verify
+    # path below, which is the one that decides.
+    if ! curl -fsSL -A "${UA}" -o "${work}/${platform}.pinned.sha256" \
+      "${RELEASES}/v${version}/knaix-${platform}.sha256"
+    then
+      note "Could not read the published sidecar for knaix-${platform}; re-verifying from the bucket."
+      reuse_pinned=""
+      break
+    fi
+    sidecar="$(tr -d '[:space:]' <"${work}/${platform}.pinned.sha256")"
+    if [[ "${sidecar}" != "${sha}" ]]
+    then
+      note "Published sidecar for knaix-${platform} no longer matches the pinned checksum; re-verifying from the bucket."
+      reuse_pinned=""
+      break
+    fi
+
     printf '%s' "${sha}" >"${work}/${platform}.verified"
   done
 fi
 
 if [[ -n "${reuse_pinned}" ]]
 then
-  note "Formula already pins v${version}; reused its verified checksums without downloading."
+  note "Formula already pins v${version}; reused its checksums after matching each against its published sidecar."
 fi
 
 # Verified checksums go to files rather than an associative array: macOS still

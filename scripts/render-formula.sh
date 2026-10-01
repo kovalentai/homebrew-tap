@@ -147,7 +147,7 @@ then
     # almost no cost. Any doubt falls through to the full download-and-verify
     # path below, which is the one that decides.
     if ! curl -fsSL -A "${UA}" -o "${work}/${platform}.pinned.sha256" \
-      "${RELEASES}/v${version}/knaix-${platform}.sha256"
+       "${RELEASES}/v${version}/knaix-${platform}.sha256"
     then
       note "Could not read the published sidecar for knaix-${platform}; re-verifying from the bucket."
       reuse_pinned=""

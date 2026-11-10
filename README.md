@@ -1,6 +1,24 @@
-# Kovalent Homebrew tap
+# Kovalent Homebrew Tap
 
-Homebrew formulae for [Kovalent](https://kovalentai.com) tools.
+<div align="center">
+  <img src="assets/logo-multicolor.svg" alt="Kovalent Logo" width="128">
+  <br />
+  <strong>Homebrew formulae for Kovalent's command-line tools</strong>
+  <br />
+  <br />
+  <a href="https://knaix.com">Knaix CLI</a> |
+  <a href="https://kovalentai.com">Website</a> |
+  <a href="https://docs.kovalentai.com">Documentation</a> |
+  <a href="https://app.kovalentai.com">Live App</a>
+  <br />
+  <br />
+  <a href="https://github.com/kovalentai/homebrew-tap/actions/workflows/ci.yml"><img src="https://github.com/kovalentai/homebrew-tap/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/kovalentai/homebrew-tap/actions/workflows/ci.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/kovalentai/homebrew-tap/badges/coverage.json" alt="Coverage"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748B" alt="Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-64748B" alt="macOS and Linux">
+</div>
+
+---
 
 ## Install the Knaix CLI
 
@@ -50,3 +68,33 @@ issue tracker, not here.
 
 The first install from any third-party tap asks you to trust it. That is Homebrew asking, not us,
 and it is the same prompt you get for every tap outside homebrew-core.
+
+## Working on the tap
+
+Two things live here. `Formula/knaix.rb` is generated, and CI style-checks, audits, installs and
+runs it on Apple Silicon, Intel and Linux. `scripts/render-formula.sh` is what generates it, from
+whatever `releases.knaix.com` serves, and it has its own suite:
+
+```sh
+tests/render-formula.test.sh
+```
+
+No network and no ports: each case stands up its own release bucket as files, with
+`tests/fake-curl` in place of `curl` on a trimmed `PATH`.
+
+Coverage is measured the way CI measures it, and the floor in `tests/coverage.sh` is 100% of lines:
+
+```sh
+gem install bashcov && tests/coverage.sh
+```
+
+The report lands in `coverage/index.html`. macOS needs a bash newer than the 3.2 it ships
+(`brew install bash`), since tracing uses `BASH_XTRACEFD`.
+
+`brew style` reads everything here, not just the formula: it runs rubocop over `.simplecov`, and
+shellcheck and shfmt over every `*.sh` file, with Homebrew's own rules on top of shfmt's. Run it
+before pushing, and `brew style --fix` to apply what it can:
+
+```sh
+brew style .
+```

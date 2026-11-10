@@ -1,0 +1,2 @@
+# Build output. tests/coverage.sh writes the coverage report here.
+coverage/

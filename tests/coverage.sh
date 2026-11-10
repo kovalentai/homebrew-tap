@@ -14,6 +14,10 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# SimpleCov reads .simplecov from the working directory, not from --root, and
+# without it the harness counts towards the figure. Run from the repo either way.
+cd "${root}"
+
 bash_path="${BASHCOV_BASH_PATH:-}"
 if [[ -z "${bash_path}" ]]
 then
@@ -41,11 +45,14 @@ FLOOR=100
 bashcov --skip-uncovered --bash-path "${bash_path}" --root "${root}" -- \
   "${root}/tests/render-formula.test.sh"
 
-percent="$(jq '.total.lines.percent' "${root}/coverage/coverage.json")"
-if jq -e --argjson floor "${FLOOR}" '.total.lines.percent < $floor' \
+# Asserted the way round where a missing number fails: jq -e exits non-zero on
+# false and on null alike, so testing "at or above the floor" also catches a
+# report that no longer carries the figure.
+if ! jq -e --argjson floor "${FLOOR}" '.total.lines.percent >= $floor' \
   "${root}/coverage/coverage.json" >/dev/null
 then
-  printf 'Line coverage %s%% is below the floor of %s%%.\n' "${percent}" "${FLOOR}" >&2
+  printf 'Line coverage %s is below the floor of %s%%.\n' \
+    "$(jq '.total.lines.percent' "${root}/coverage/coverage.json")" "${FLOOR}" >&2
   exit 1
 fi
 

@@ -90,3 +90,11 @@ gem install bashcov && tests/coverage.sh
 
 The report lands in `coverage/index.html`. macOS needs a bash newer than the 3.2 it ships
 (`brew install bash`), since tracing uses `BASH_XTRACEFD`.
+
+`brew style` reads everything here, not just the formula: it runs rubocop over `.simplecov`, and
+shellcheck and shfmt over every `*.sh` file, with Homebrew's own rules on top of shfmt's. Run it
+before pushing, and `brew style --fix` to apply what it can:
+
+```sh
+brew style .
+```

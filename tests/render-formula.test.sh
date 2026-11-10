@@ -10,6 +10,10 @@
 # uses -- curl among them replaced by tests/fake-curl -- and a fixture formula
 # reached through KNAIX_TAP_FORMULA. Limiting PATH is what lets a case decide
 # whether sha256sum exists, so both arms of sha256_of run on any machine.
+# SC2312: the helpers below are called inside assertions, where their exit
+# status is masked by design -- a helper that fails shows up as the assertion
+# failing on an empty value, which is the report this suite exists to print.
+# shellcheck disable=SC2312
 set -uo pipefail
 
 TESTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,22 +48,28 @@ bad() {
 
 eq() {
   if [[ "$2" == "$3" ]]
-  then ok "$1"
-  else bad "$1" "expected [$2], got [$3]"
+  then
+    ok "$1"
+  else
+    bad "$1" "expected [$2], got [$3]"
   fi
 }
 
 has() {
   if [[ "$3" == *"$2"* ]]
-  then ok "$1"
-  else bad "$1" "expected to contain [$2], got [$3]"
+  then
+    ok "$1"
+  else
+    bad "$1" "expected to contain [$2], got [$3]"
   fi
 }
 
 lacks() {
   if [[ "$3" != *"$2"* ]]
-  then ok "$1"
-  else bad "$1" "expected not to contain [$2], got [$3]"
+  then
+    ok "$1"
+  else
+    bad "$1" "expected not to contain [$2], got [$3]"
   fi
 }
 
@@ -82,7 +92,8 @@ world() {
   mkdir -p "${WWW}" "${BIN}"
   : >"${LOG}"
   for tool in "${TOOLS[@]}"
-  do ln -sf "$(command -v "${tool}")" "${BIN}/${tool}"
+  do
+    ln -sf "$(command -v "${tool}")" "${BIN}/${tool}"
   done
   ln -sf "${TESTS}/fake-curl" "${BIN}/curl"
   ln -sf "$(command -v shasum)" "${BIN}/shasum"
@@ -112,8 +123,10 @@ pin() {
       sidecar="${WWW}/v$1/knaix-${platform}.sha256"
       printf '      url "%s/v%s/knaix-%s"\n' "${HOST}" "$1" "${platform}"
       if [[ -f "${sidecar}" ]]
-      then printf '      sha256 "%s"\n' "$(cat "${sidecar}")"
-      else printf '      sha256 "%064d"\n' 0
+      then
+        printf '      sha256 "%s"\n' "$(cat "${sidecar}")"
+      else
+        printf '      sha256 "%064d"\n' 0
       fi
     done
   } >"${FORMULA}"
@@ -137,7 +150,8 @@ render() {
 trash=()
 cleanup() {
   for dir in ${trash+"${trash[@]}"}
-  do rm -rf "${dir}"
+  do
+    rm -rf "${dir}"
   done
 }
 trap cleanup EXIT

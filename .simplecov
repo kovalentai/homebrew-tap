@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Read by bashcov through SimpleCov. Run it with tests/coverage.sh, which passes
 # the flags the numbers depend on and enforces the floor.
 

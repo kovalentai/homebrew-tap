@@ -23,9 +23,10 @@ if [[ -z "${bash_path}" ]]
 then
   for candidate in "$(command -v bash)" /bin/bash /usr/local/bin/bash /opt/homebrew/bin/bash
   do
+    [[ -x "${candidate}" ]] || continue
     # shellcheck disable=SC2016  # the candidate expands it, not this shell
-    if [[ -x "${candidate}" ]] &&
-      [[ "$("${candidate}" -c 'echo ${BASH_VERSINFO[0]}')" -ge 4 ]]
+    major="$("${candidate}" -c 'echo ${BASH_VERSINFO[0]}')"
+    if [[ "${major}" -ge 4 ]]
     then
       bash_path="${candidate}"
       break
@@ -49,10 +50,10 @@ bashcov --skip-uncovered --bash-path "${bash_path}" --root "${root}" -- \
 # false and on null alike, so testing "at or above the floor" also catches a
 # report that no longer carries the figure.
 if ! jq -e --argjson floor "${FLOOR}" '.total.lines.percent >= $floor' \
-  "${root}/coverage/coverage.json" >/dev/null
+   "${root}/coverage/coverage.json" >/dev/null
 then
-  printf 'Line coverage %s is below the floor of %s%%.\n' \
-    "$(jq '.total.lines.percent' "${root}/coverage/coverage.json")" "${FLOOR}" >&2
+  percent="$(jq '.total.lines.percent' "${root}/coverage/coverage.json")"
+  printf 'Line coverage %s is below the floor of %s%%.\n' "${percent}" "${FLOOR}" >&2
   exit 1
 fi
 
@@ -64,7 +65,7 @@ for script in "${root}"/scripts/*.sh
 do
   shipped="${script#"${root}/"}"
   if ! jq -e --arg f "${shipped}" '.coverage | has($f)' \
-    "${root}/coverage/coverage.json" >/dev/null
+     "${root}/coverage/coverage.json" >/dev/null
   then
     printf '%s runs in no test: it is absent from the coverage report.\n' \
       "${shipped}" >&2

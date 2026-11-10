@@ -32,8 +32,10 @@ NOT_READY=3
 # was counted as four installs arriving by install.sh, because that is what a
 # bare curl looks like in the logs.
 #
-# Must not contain the word "homebrew": the log classifier tests for that first,
-# and this traffic is the bump job, not a brew install.
+# Must keep the "knaix-tap-bump" token: the stats query in knaix-cli matches it
+# (case-insensitively) and files the request as ci before it tests for homebrew,
+# powershell or curl, so that token is the whole reason this traffic is not
+# counted as somebody installing.
 UA="knaix-tap-bump/1 (+https://github.com/kovalentai/homebrew-tap)"
 
 # Set to any non-empty value to re-download and re-verify even when the formula

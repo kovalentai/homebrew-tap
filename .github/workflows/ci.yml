@@ -25,10 +25,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-14 is Apple Silicon and macos-15-intel is Intel, so both macOS
+        # macos-15 is Apple Silicon and macos-15-intel is Intel, so both macOS
         # branches of the formula get exercised rather than just the one the
-        # default runner happens to be.
-        os: [macos-14, macos-15-intel, ubuntu-latest]
+        # default runner happens to be. Pinned to one macOS version, so the
+        # pair moves together.
+        #
+        # This was macos-14 until that image was retired. A label GitHub no
+        # longer serves does not fail: the job is cancelled in the same second
+        # it starts, with no runner, no steps and no annotation, and the run
+        # goes green around it. Every on_arm install went unchecked for three
+        # runs before anyone noticed.
+        os: [macos-15, macos-15-intel, ubuntu-latest]
     steps:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main

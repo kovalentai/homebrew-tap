@@ -49,6 +49,13 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/tap" "$TAP_DIR"
           brew tap-info kovalentai/tap
 
+      # The formula is checked by brew below; this is the other half of the repo,
+      # the script the bump workflow renders it with. Run on every OS in the
+      # matrix because it is a bash script, and macOS still ships bash 3.2.
+      - name: Render script tests
+        working-directory: tap
+        run: tests/render-formula.test.sh
+
       - name: Style
         run: brew style kovalentai/tap
 
@@ -83,3 +90,82 @@ jobs:
             echo "::error::Formula is at $formula but releases.knaix.com serves $latest. Run the Bump the formula workflow in this repository."
             exit 1
           fi
+
+  # Coverage of scripts/render-formula.sh, measured once, on Linux, the way the
+  # bump workflow runs it. tests/coverage.sh holds the floor, so the number is
+  # enforced the same way here and on a laptop.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install bashcov
+        run: gem install --no-document bashcov -v 4.0.2
+
+      - name: Tests, measuring coverage
+        run: tests/coverage.sh
+
+      # Rounded down, so the badge never claims more than was measured.
+      - name: Coverage badge
+        run: |
+          set -euo pipefail
+          jq '.total.lines.percent as $p | {schemaVersion: 1, label: "coverage",
+              message: "\($p | floor)%",
+              color: (if $p < 60 then "red" elif $p < 80 then "yellow" else "brightgreen" end)}' \
+            coverage/coverage.json > badge.json
+          cat badge.json
+
+      - name: Keep the badge for publishing
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge
+          path: badge.json
+
+  # Publishes the badge the README shows, from main only. Its own job, so the
+  # test jobs' token stays read-only, and allowed to fail, since a badge that
+  # did not update is no reason to mark main red.
+  coverage-badge:
+    name: Publish the coverage badge
+    needs: coverage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-badge
+          path: new
+
+      # An orphan branch that holds only the badge, committed to only when the
+      # number changed.
+      - name: Commit it to the badges branch
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git init -q badges && cd badges
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          if git fetch -q --depth 1 origin badges; then
+            git checkout -q -B badges FETCH_HEAD
+          else
+            git checkout -q --orphan badges
+          fi
+          cp ../new/badge.json coverage.json
+          git add coverage.json
+          if git diff --cached --quiet; then
+            echo "Coverage unchanged: $(jq -r .message coverage.json)"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "coverage: $(jq -r .message coverage.json)"
+          git push -q origin HEAD:badges

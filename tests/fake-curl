@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Stand-in curl for the render-formula tests. Serves ${FAKE_WWW} by URL path and
+# appends "user-agent url" to ${FAKE_CURL_LOG}, so a test can assert what was
+# fetched and how it identified itself. A path with no file exits 22, the same
+# code curl gives for an HTTP error under -f.
+set -uo pipefail
+
+out=""
+url=""
+ua=""
+while [[ $# -gt 0 ]]
+do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    -A)
+      ua="$2"
+      shift 2
+      ;;
+    -*) shift ;;
+    *)
+      url="$1"
+      shift
+      ;;
+  esac
+done
+
+printf '%s %s\n' "${ua}" "${url}" >>"${FAKE_CURL_LOG:?}"
+
+path="${FAKE_WWW:?}/${url#*://*/}"
+[[ -f "${path}" ]] || exit 22
+
+if [[ -n "${out}" ]]
+then
+  cp "${path}" "${out}"
+else
+  cat "${path}"
+fi

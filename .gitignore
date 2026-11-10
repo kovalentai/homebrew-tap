@@ -1,0 +1,3 @@
+# Build output. tests/coverage.sh writes the report and the badge input here.
+coverage/
+badge.json

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stand-in sha256sum, so the sha256sum branch of sha256_of runs on macOS too,
+# where only shasum exists. Same output shape: "<hash>  <file>".
+exec shasum -a 256 "$@"

@@ -46,8 +46,9 @@ version="${1:-}"
 out="${2:-}"
 
 # The formula this script maintains. Read to reuse checksums that were already
-# verified, never to decide what to publish.
-formula="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Formula/knaix.rb"
+# verified, never to decide what to publish. Overridable so the tests can point
+# it at a fixture formula instead of the one this repo ships.
+formula="${KNAIX_TAP_FORMULA:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Formula/knaix.rb}"
 
 note() { printf '%s\n' "$*" >&2; }
 
